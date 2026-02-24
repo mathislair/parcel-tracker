@@ -112,32 +112,51 @@
     }
   }
 
-  $: if (show && !callActive) {
+  function startRingAnimation() {
+    if (ringInterval) return;
     ringInterval = setInterval(() => {
       ringOn = !ringOn;
     }, 500);
+  }
+
+  function stopRingAnimation() {
+    if (ringInterval) {
+      clearInterval(ringInterval);
+      ringInterval = null;
+    }
+  }
+
+  function resetCallState() {
+    stopRingAnimation();
+    clearInterval(callTimer);
+    callTimer = null;
+    clearAutoHangup();
+    callActive = false;
+    elapsed = 0;
+    callEnded = false;
+    stopRingtone();
+    stopCallAudio();
+  }
+
+  $: if (show && !callActive) {
+    startRingAnimation();
     startRingtone();
   }
 
   $: if (!show || callActive) {
     stopRingtone();
+    stopRingAnimation();
   }
 
   $: if (!show) {
-    clearInterval(ringInterval);
-    clearInterval(callTimer);
-    clearAutoHangup();
-    callActive = false;
-    elapsed = 0;
-    callEnded = false;
-    stopCallAudio();
+    resetCallState();
   }
 
   function accept() {
     clearAutoHangup();
     callEnded = false;
     callActive = true;
-    clearInterval(ringInterval);
+    stopRingAnimation();
     stopRingtone();
     startCallAudio();
     elapsed = 0;
@@ -153,9 +172,11 @@
   function decline() {
     if (callEnded) return;
     callEnded = true;
-    clearInterval(ringInterval);
+    stopRingAnimation();
     clearInterval(callTimer);
+    callTimer = null;
     clearAutoHangup();
+    callActive = false;
     stopRingtone();
     stopCallAudio();
     dispatch("end", { accepted: false });
@@ -165,7 +186,9 @@
     if (callEnded) return;
     callEnded = true;
     clearInterval(callTimer);
+    callTimer = null;
     clearAutoHangup();
+    callActive = false;
     stopRingtone();
     stopCallAudio();
     dispatch("end", { accepted: true, duration: elapsed });
@@ -178,8 +201,9 @@
   }
 
   onDestroy(() => {
-    clearInterval(ringInterval);
+    stopRingAnimation();
     clearInterval(callTimer);
+    callTimer = null;
     clearAutoHangup();
     stopRingtone();
     stopCallAudio();

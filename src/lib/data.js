@@ -69,8 +69,8 @@ export const driver = {
 
 export const parcel = {
   id: 'LP-839-201-847',
-  from: 'Amazon EU',
-  description: 'MacBook Air M4 — Gris sidéral',
+  from: 'Uber Eats',
+  description: 'Commande Uber Eats',
   weight: '1.8 kg',
   recipient: 'Mathieu Dupont',
   address: '26 boulevard Maxime Gorki, Villejuif',
