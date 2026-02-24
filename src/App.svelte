@@ -30,6 +30,7 @@
   let etaSeconds = 0;
   let totalDuration = 180;
   let extraDelay = 0;
+  let nowTs = Date.now();
   let interval;
   let startTime;
   let paused = false;
@@ -54,11 +55,37 @@
   let dragStart = { x: 0, y: 0 };
   let dragOrigin = { x: 0, y: 0 };
 
+  // Bottom sheet
+  const PANEL_COLLAPSED_OFFSET = 250;
+  const PANEL_COLLAPSE_THRESHOLD = 120;
+  let panelCollapsed = false;
+  let panelDragging = false;
+  let panelDragY = 0;
+  let panelDragStartY = 0;
+
   // Computed
   $: distLeft =
     driverPos && userPos ? Math.round(distanceMeters(driverPos, userPos)) : 0;
   $: etaText = formatETA(etaSeconds);
+  $: hasDelayWindow = extraDelay > 0 && !delivered;
+  $: arrivalWindowText = hasDelayWindow
+    ? formatArrivalWindow(nowTs, etaSeconds, extraDelay)
+    : "";
   $: doneSteps = delivered ? 5 : arriving ? 4 : started ? 3 : 2;
+
+  function formatClockTime(date) {
+    return date.toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function formatArrivalWindow(baseTs, etaSec, delaySec) {
+    const startAt = new Date(baseTs + etaSec * 1000);
+    const windowSlack = Math.max(5 * 60, Math.round(delaySec * 0.5));
+    const endAt = new Date(baseTs + (etaSec + windowSlack) * 1000);
+    return `${formatClockTime(startAt)} - ${formatClockTime(endAt)}`;
+  }
 
   const steps = [
     { label: "Confirmée", icon: "check" },
@@ -109,6 +136,7 @@
 
   function tick() {
     const now = Date.now();
+    nowTs = now;
 
     // If paused (driver stopped for delay/call event)
     if (paused && now < pauseUntil) return;
@@ -343,8 +371,40 @@
     draggingToastId = null;
   }
 
+  function handlePanelPointerDown(e) {
+    if (e.button !== 0) return;
+    panelDragging = true;
+    panelDragStartY = e.clientY;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  }
+
+  function handlePanelPointerMove(e) {
+    if (!panelDragging) return;
+    const dy = e.clientY - panelDragStartY;
+    if (panelCollapsed) {
+      panelDragY = Math.max(-PANEL_COLLAPSED_OFFSET, Math.min(0, dy));
+    } else {
+      panelDragY = Math.max(0, Math.min(PANEL_COLLAPSED_OFFSET, dy));
+    }
+  }
+
+  function handlePanelPointerUp(e) {
+    if (!panelDragging) return;
+    const dy = e.clientY - panelDragStartY;
+    panelDragging = false;
+    if (!panelCollapsed && dy > PANEL_COLLAPSE_THRESHOLD) {
+      panelCollapsed = true;
+    } else if (panelCollapsed && dy < -(PANEL_COLLAPSE_THRESHOLD / 2)) {
+      panelCollapsed = false;
+    }
+    panelDragY = 0;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  }
+
   // --- Lifecycle ---
   onMount(async () => {
+    nowTs = Date.now();
     try {
       const destPos = await geocodeAddress(parcel.address);
       userPos = destPos || (await getUserLocation());
@@ -487,7 +547,21 @@
   </div>
 
   <!-- Bottom Panel -->
-  <div class="bottom-panel">
+  <div
+    class="bottom-panel"
+    class:collapsed={panelCollapsed}
+    class:dragging={panelDragging}
+    style="transform: translateY({panelDragY}px);"
+  >
+    <button
+      class="panel-grabber"
+      on:pointerdown={handlePanelPointerDown}
+      on:pointermove={handlePanelPointerMove}
+      on:pointerup={handlePanelPointerUp}
+      on:pointercancel={handlePanelPointerUp}
+      aria-label="Glisser le panneau"
+    ></button>
+
     <!-- ETA -->
     {#if !delivered}
       <div class="eta-section" in:fade>
@@ -501,16 +575,21 @@
             <span class="eta-number">{etaText}</span>
             <span class="eta-label">estimé</span>
           </div>
+          {#if hasDelayWindow}
+            <div class="eta-window">Plage estimée : {arrivalWindowText}</div>
+          {/if}
         {/if}
         <div class="eta-dist">
           {distLeft > 1000
             ? (distLeft / 1000).toFixed(1) + " km"
             : distLeft + " m"}
         </div>
-        <div class="progress-track">
-          <div class="progress-fill" style="width: {progress * 100}%"></div>
-          <div class="progress-thumb" style="left: {progress * 100}%"></div>
-        </div>
+        {#if !panelCollapsed}
+          <div class="progress-track">
+            <div class="progress-fill" style="width: {progress * 100}%"></div>
+            <div class="progress-thumb" style="left: {progress * 100}%"></div>
+          </div>
+        {/if}
       </div>
     {:else}
       <div class="delivered-section" in:fly={{ y: 20 }}>
@@ -528,7 +607,9 @@
         </div>
         <div>
           <span class="delivered-title">Colis livré !</span>
-          <span class="delivered-sub">Déposé au {parcel.address}</span>
+          {#if !panelCollapsed}
+            <span class="delivered-sub">Déposé au {parcel.address}</span>
+          {/if}
         </div>
       </div>
     {/if}
@@ -541,21 +622,23 @@
       </div>
       <div class="driver-info">
         <span class="driver-name">{driver.name}</span>
-        <span class="driver-meta">
-          <svg
-            width="11"
-            height="11"
-            viewBox="0 0 24 24"
-            fill="#f59e0b"
-            stroke="none"
-          >
-            <polygon
-              points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"
-            />
-          </svg>
-          {driver.rating} · {driver.deliveries} livraisons
-        </span>
-        <span class="driver-vehicle">{driver.vehicle} · {driver.plate}</span>
+        {#if !panelCollapsed}
+          <span class="driver-meta">
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="#f59e0b"
+              stroke="none"
+            >
+              <polygon
+                points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"
+              />
+            </svg>
+            {driver.rating} · {driver.deliveries} livraisons
+          </span>
+          <span class="driver-vehicle">{driver.vehicle} · {driver.plate}</span>
+        {/if}
       </div>
       <div class="driver-btns">
         <button
@@ -599,96 +682,99 @@
         </button>
       </div>
     </div>
-    <div class="driver-actions">
-      <button class="force-call-btn" on:click={forceIncomingCall}>
-        Forcer l'appel entrant
-      </button>
-    </div>
 
-    <!-- Parcel -->
-    <div class="parcel-row">
-      <div class="parcel-icon">
+    {#if !panelCollapsed}
+      <div class="driver-actions">
+        <button class="force-call-btn" on:click={forceIncomingCall}>
+          Forcer l'appel entrant
+        </button>
+      </div>
+
+      <!-- Parcel -->
+      <div class="parcel-row">
+        <div class="parcel-icon">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#3b82f6"
+            stroke-width="1.5"
+          >
+            <path
+              d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"
+            />
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line
+              x1="12"
+              y1="22.08"
+              x2="12"
+              y2="12"
+            />
+          </svg>
+        </div>
+        <div class="parcel-info">
+          <span class="parcel-desc">{parcel.description}</span>
+          <span class="parcel-sub">{parcel.from} · {parcel.id}</span>
+        </div>
+      </div>
+
+      <!-- Instructions -->
+      <div class="instructions-row">
         <svg
-          width="18"
-          height="18"
+          width="14"
+          height="14"
           viewBox="0 0 24 24"
           fill="none"
-          stroke="#3b82f6"
-          stroke-width="1.5"
+          stroke="#92400e"
+          stroke-width="2"
         >
-          <path
-            d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"
-          />
-          <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line
-            x1="12"
-            y1="22.08"
-            x2="12"
-            y2="12"
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle
+            cx="12"
+            cy="10"
+            r="3"
           />
         </svg>
+        <span>{parcel.address}</span>
       </div>
-      <div class="parcel-info">
-        <span class="parcel-desc">{parcel.description}</span>
-        <span class="parcel-sub">{parcel.from} · {parcel.id}</span>
-      </div>
-    </div>
 
-    <!-- Instructions -->
-    <div class="instructions-row">
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="#92400e"
-        stroke-width="2"
-      >
-        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle
-          cx="12"
-          cy="10"
-          r="3"
-        />
-      </svg>
-      <span>{parcel.address}</span>
-    </div>
-
-    <!-- Timeline -->
-    <div class="timeline-row">
-      {#each steps as step, i}
-        <div
-          class="tl"
-          class:done={i < doneSteps}
-          class:now={i === doneSteps - 1 && !delivered}
-          class:wait={i >= doneSteps}
-        >
-          <div class="tl-dot">
-            {#if i < doneSteps}
-              <svg
-                width="9"
-                height="9"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="white"
-                stroke-width="4"><polyline points="20 6 9 17 4 12" /></svg
-              >
+      <!-- Timeline -->
+      <div class="timeline-row">
+        {#each steps as step, i}
+          <div
+            class="tl"
+            class:done={i < doneSteps}
+            class:now={i === doneSteps - 1 && !delivered}
+            class:wait={i >= doneSteps}
+          >
+            <div class="tl-dot">
+              {#if i < doneSteps}
+                <svg
+                  width="9"
+                  height="9"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="white"
+                  stroke-width="4"><polyline points="20 6 9 17 4 12" /></svg
+                >
+              {/if}
+            </div>
+            {#if i < steps.length - 1}
+              <div class="tl-bar" class:filled={i < doneSteps - 1}></div>
             {/if}
           </div>
-          {#if i < steps.length - 1}
-            <div class="tl-bar" class:filled={i < doneSteps - 1}></div>
-          {/if}
-        </div>
-      {/each}
-    </div>
-    <div class="tl-names">
-      {#each steps as step, i}
-        <span class:active={i === doneSteps - 1 && !delivered}
-          >{step.label}</span
-        >
-      {/each}
-    </div>
+        {/each}
+      </div>
+      <div class="tl-names">
+        {#each steps as step, i}
+          <span class:active={i === doneSteps - 1 && !delivered}
+            >{step.label}</span
+          >
+        {/each}
+      </div>
 
-    {#if geoError}
-      <p class="geo-hint">Position approx. (géolocalisation refusée)</p>
+      {#if geoError}
+        <p class="geo-hint">Position approx. (géolocalisation refusée)</p>
+      {/if}
     {/if}
   </div>
 
@@ -872,20 +958,43 @@
     z-index: 100;
     background: white;
     border-radius: 24px 24px 0 0;
-    padding: 10px 20px 28px;
+    padding: 8px 20px 24px;
     box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.1);
-    max-height: 60vh;
+    max-height: 62vh;
     overflow-y: auto;
+    transition: transform 0.2s ease;
   }
 
-  .bottom-panel::before {
-    content: "";
+  .bottom-panel.dragging {
+    transition: none;
+  }
+
+  .bottom-panel.collapsed {
+    max-height: 210px;
+    overflow: hidden;
+  }
+
+  .panel-grabber {
+    all: unset;
     display: block;
+    width: 100%;
+    height: 20px;
+    cursor: grab;
+    touch-action: none;
+    position: relative;
+    margin-bottom: 10px;
+  }
+
+  .panel-grabber::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 6px;
+    transform: translateX(-50%);
     width: 36px;
     height: 4px;
     background: #e2e8f0;
     border-radius: 2px;
-    margin: 4px auto 14px;
   }
 
   /* ETA */
@@ -949,6 +1058,13 @@
     font-size: 13px;
     color: #64748b;
     margin: 4px 0 12px;
+  }
+
+  .eta-window {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #92400e;
+    font-weight: 600;
   }
 
   .progress-track {
@@ -1301,9 +1417,9 @@
 
   @media (min-width: 768px) {
     .bottom-panel {
-      left: 50%;
-      transform: translateX(-50%);
-      max-width: 420px;
+      left: calc(50% - 210px);
+      right: auto;
+      width: 420px;
       border-radius: 24px;
       bottom: 20px;
       box-shadow: 0 8px 40px rgba(0, 0, 0, 0.12);
