@@ -28,7 +28,7 @@
   let arriving = false;
   let progress = 0;
   let etaSeconds = 0;
-  let totalDuration = 75;
+  let totalDuration = 80;
   let extraDelay = 0;
   let nowTs = Date.now();
   let interval;
