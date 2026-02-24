@@ -1,9 +1,9 @@
 <script>
-  import { fly, fade } from 'svelte/transition';
-  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
+  import { fly, fade } from "svelte/transition";
+  import { createEventDispatcher, onMount, onDestroy } from "svelte";
 
-  export let driverName = 'Karim B.';
-  export let reason = '';
+  export let driverName = "Karim B.";
+  export let reason = "";
   export let show = false;
 
   const dispatch = createEventDispatcher();
@@ -12,16 +12,51 @@
   let elapsed = 0;
   let callActive = false;
   let callTimer;
+  let ringAudio;
+  let audioPlaying = false;
+
+  function startRingtone() {
+    if (!ringAudio) {
+      ringAudio = new Audio(`${import.meta.env.BASE_URL}greg.mp3`);
+      ringAudio.loop = true;
+      ringAudio.volume = 0.9;
+    }
+    if (!audioPlaying) {
+      audioPlaying = true;
+      ringAudio.currentTime = 0;
+      ringAudio.play().catch(() => {
+        audioPlaying = false;
+      });
+    }
+  }
+
+  function stopRingtone() {
+    if (ringAudio && audioPlaying) {
+      ringAudio.pause();
+      ringAudio.currentTime = 0;
+    }
+    audioPlaying = false;
+  }
 
   $: if (show && !callActive) {
-    ringInterval = setInterval(() => { ringOn = !ringOn; }, 500);
+    ringInterval = setInterval(() => {
+      ringOn = !ringOn;
+    }, 500);
+    startRingtone();
+  }
+
+  $: if (!show || callActive) {
+    stopRingtone();
   }
 
   function accept() {
     callActive = true;
     clearInterval(ringInterval);
+    stopRingtone();
     elapsed = 0;
-    callTimer = setInterval(() => { elapsed++; }, 1000);
+    callTimer = setInterval(() => {
+      elapsed++;
+    }, 1000);
 
     // Auto hang up after 5-12s
     const duration = 5000 + Math.random() * 7000;
@@ -31,38 +66,49 @@
   function decline() {
     clearInterval(ringInterval);
     clearInterval(callTimer);
-    dispatch('end', { accepted: false });
+    stopRingtone();
+    dispatch("end", { accepted: false });
   }
 
   function hangup() {
     clearInterval(callTimer);
-    dispatch('end', { accepted: true, duration: elapsed });
+    stopRingtone();
+    dispatch("end", { accepted: true, duration: elapsed });
   }
 
   function fmtTime(s) {
     const m = Math.floor(s / 60);
     const sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, '0')}`;
+    return `${m}:${sec.toString().padStart(2, "0")}`;
   }
 
   onDestroy(() => {
     clearInterval(ringInterval);
     clearInterval(callTimer);
+    stopRingtone();
   });
 </script>
 
 {#if show}
   <div class="call-overlay" transition:fade={{ duration: 200 }}>
     <div class="call-card" in:fly={{ y: -40, duration: 350 }}>
-
       {#if !callActive}
         <!-- Ringing -->
         <div class="call-ring-anim">
           <div class="ring-circle r1" class:pulse={ringOn}></div>
           <div class="ring-circle r2" class:pulse={!ringOn}></div>
           <div class="call-avatar">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-              <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/>
+            <svg
+              width="28"
+              height="28"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              stroke-width="2"
+            >
+              <path
+                d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"
+              />
             </svg>
           </div>
         </div>
@@ -72,14 +118,43 @@
           <span class="call-reason">{reason}</span>
         {/if}
         <div class="call-actions">
-          <button class="call-btn decline" on:click={decline} aria-label="Refuser l'appel">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          <button
+            class="call-btn decline"
+            on:click={decline}
+            aria-label="Refuser l'appel"
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              stroke-width="2"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" /><line
+                x1="6"
+                y1="6"
+                x2="18"
+                y2="18"
+              />
             </svg>
           </button>
-          <button class="call-btn accept" on:click={accept} aria-label="Accepter l'appel">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-              <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/>
+          <button
+            class="call-btn accept"
+            on:click={accept}
+            aria-label="Accepter l'appel"
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              stroke-width="2"
+            >
+              <path
+                d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"
+              />
             </svg>
           </button>
         </div>
@@ -96,10 +171,23 @@
         <span class="call-name">{driverName}</span>
         <span class="call-timer">{fmtTime(elapsed)}</span>
         <div class="call-actions">
-          <button class="call-btn hangup" on:click={hangup} aria-label="Raccrocher">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-              <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3"/>
-              <line x1="1" y1="1" x2="23" y2="23"/>
+          <button
+            class="call-btn hangup"
+            on:click={hangup}
+            aria-label="Raccrocher"
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              stroke-width="2"
+            >
+              <path
+                d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3"
+              />
+              <line x1="1" y1="1" x2="23" y2="23" />
             </svg>
           </button>
         </div>
@@ -113,7 +201,7 @@
     position: fixed;
     inset: 0;
     z-index: 500;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
@@ -126,7 +214,7 @@
     padding: 40px 48px;
     text-align: center;
     min-width: 300px;
-    box-shadow: 0 24px 80px rgba(0,0,0,0.4);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
   }
 
   /* Ring animation */
@@ -151,12 +239,22 @@
     animation: ringPulse 1s ease-out;
   }
 
-  .r1 { inset: -8px; }
-  .r2 { inset: -20px; }
+  .r1 {
+    inset: -8px;
+  }
+  .r2 {
+    inset: -20px;
+  }
 
   @keyframes ringPulse {
-    0% { transform: scale(0.8); opacity: 0.5; }
-    100% { transform: scale(1.2); opacity: 0; }
+    0% {
+      transform: scale(0.8);
+      opacity: 0.5;
+    }
+    100% {
+      transform: scale(1.2);
+      opacity: 0;
+    }
   }
 
   .call-avatar {
@@ -183,8 +281,13 @@
   }
 
   @keyframes avatarPulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.3); }
-    50% { box-shadow: 0 0 0 15px rgba(16,185,129,0); }
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 0 15px rgba(16, 185, 129, 0);
+    }
   }
 
   .call-label {
@@ -215,7 +318,7 @@
 
   .call-timer {
     display: block;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: "JetBrains Mono", monospace;
     font-size: 16px;
     color: #94a3b8;
     margin-bottom: 4px;
@@ -240,17 +343,29 @@
     position: absolute;
     inset: 0;
     border-radius: 50%;
-    border: 1.5px solid rgba(99,102,241,0.3);
+    border: 1.5px solid rgba(99, 102, 241, 0.3);
     animation: waveOut 2s ease-out infinite;
   }
 
-  .w1 { animation-delay: 0s; }
-  .w2 { animation-delay: 0.6s; }
-  .w3 { animation-delay: 1.2s; }
+  .w1 {
+    animation-delay: 0s;
+  }
+  .w2 {
+    animation-delay: 0.6s;
+  }
+  .w3 {
+    animation-delay: 1.2s;
+  }
 
   @keyframes waveOut {
-    0% { transform: scale(0.7); opacity: 0.6; }
-    100% { transform: scale(1.4); opacity: 0; }
+    0% {
+      transform: scale(0.7);
+      opacity: 0.6;
+    }
+    100% {
+      transform: scale(1.4);
+      opacity: 0;
+    }
   }
 
   .call-actions {
@@ -278,17 +393,17 @@
 
   .call-btn.accept {
     background: #10b981;
-    box-shadow: 0 4px 20px rgba(16,185,129,0.4);
+    box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
   }
 
   .call-btn.decline {
     background: #ef4444;
-    box-shadow: 0 4px 20px rgba(239,68,68,0.4);
+    box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
   }
 
   .call-btn.hangup {
     background: #ef4444;
-    box-shadow: 0 4px 20px rgba(239,68,68,0.4);
+    box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
   }
 
   @media (max-width: 400px) {
