@@ -2,7 +2,7 @@
   import { fly, fade } from "svelte/transition";
   import { createEventDispatcher, onMount, onDestroy } from "svelte";
 
-  export let driverName = "Karim B.";
+  export let driverName = "Greg";
   export let reason = "";
   export let show = false;
 

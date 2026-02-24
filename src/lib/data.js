@@ -58,7 +58,7 @@ export async function fetchRoadRoute(start, end) {
 }
 
 export const driver = {
-  name: 'Karim B.',
+  name: ' Greg',
   initials: 'KB',
   vehicle: 'Renault Kangoo blanc',
   plate: 'FG-429-MH',

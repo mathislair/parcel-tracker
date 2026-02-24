@@ -274,6 +274,14 @@
     pauseUntil = Date.now() + 30000;
   }
 
+  function forceIncomingCall() {
+    if (showCall) return;
+    callReason = "Le livreur vous appelle";
+    showCall = true;
+    paused = true;
+    pauseUntil = Date.now() + 30000;
+  }
+
   // --- Toast ---
   function pushToast(text, type = "info") {
     const id = ++toastId;
@@ -590,6 +598,11 @@
           {/if}
         </button>
       </div>
+    </div>
+    <div class="driver-actions">
+      <button class="force-call-btn" on:click={forceIncomingCall}>
+        Forcer l'appel entrant
+      </button>
     </div>
 
     <!-- Parcel -->
@@ -1080,6 +1093,29 @@
   .driver-btns {
     display: flex;
     gap: 8px;
+  }
+
+  .driver-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+  }
+
+  .force-call-btn {
+    all: unset;
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #eef2ff;
+    color: #4338ca;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    border: 1px solid #c7d2fe;
+  }
+
+  .force-call-btn:hover {
+    background: #e0e7ff;
   }
 
   .icon-btn {

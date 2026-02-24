@@ -5,7 +5,7 @@
   import { createEventDispatcher, tick, afterUpdate } from 'svelte';
 
   export let messages = [];
-  export let driverName = 'Karim B.';
+  export let driverName = 'Greg';
   export let open = false;
 
   const dispatch = createEventDispatcher();

@@ -16,7 +16,7 @@ function shuffle(arr) {
 
 const greetings = [
   "Bonjour ! J'ai bien récupéré votre colis, je suis en route 🚛",
-  "Bonjour, c'est Karim votre livreur. J'arrive dans quelques minutes !",
+  "Bonjour, c'est Greg votre livreur. J'arrive dans quelques minutes !",
   "Hello ! Votre colis est avec moi, j'arrive bientôt !",
 ];
 
