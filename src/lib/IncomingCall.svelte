@@ -13,29 +13,94 @@
   let callActive = false;
   let callTimer;
   let ringAudio;
-  let audioPlaying = false;
+  let callAudio;
+  let ringPlaying = false;
+  let callPlaying = false;
+  let audioUnlocked = false;
+  let pendingRingtone = false;
+  let pendingCallAudio = false;
 
   function startRingtone() {
     if (!ringAudio) {
-      ringAudio = new Audio(`${import.meta.env.BASE_URL}greg.mp3`);
+      ringAudio = new Audio(`${import.meta.env.BASE_URL}Skype.mp3`);
       ringAudio.loop = true;
       ringAudio.volume = 0.9;
     }
-    if (!audioPlaying) {
-      audioPlaying = true;
+    if (!ringPlaying) {
+      ringPlaying = true;
       ringAudio.currentTime = 0;
       ringAudio.play().catch(() => {
-        audioPlaying = false;
+        ringPlaying = false;
+        pendingRingtone = true;
       });
     }
   }
 
+  function startCallAudio() {
+    if (!callAudio) {
+      callAudio = new Audio(`${import.meta.env.BASE_URL}greg.mp3`);
+      callAudio.loop = false;
+      callAudio.volume = 0.95;
+    }
+    if (!callPlaying) {
+      callPlaying = true;
+      callAudio.currentTime = 0;
+      callAudio.play().catch(() => {
+        callPlaying = false;
+        pendingCallAudio = true;
+      });
+    }
+  }
+
+  function unlockAudio() {
+    if (audioUnlocked) return;
+    if (!ringAudio) {
+      ringAudio = new Audio(`${import.meta.env.BASE_URL}Skype.mp3`);
+      ringAudio.loop = true;
+      ringAudio.volume = 0.9;
+    }
+    if (!callAudio) {
+      callAudio = new Audio(`${import.meta.env.BASE_URL}greg.mp3`);
+      callAudio.loop = false;
+      callAudio.volume = 0.95;
+    }
+    ringAudio
+      .play()
+      .then(() => {
+        ringAudio.pause();
+        ringAudio.currentTime = 0;
+        audioUnlocked = true;
+        if (pendingRingtone && show && !callActive) {
+          pendingRingtone = false;
+          startRingtone();
+        }
+        if (pendingCallAudio && callActive) {
+          pendingCallAudio = false;
+          startCallAudio();
+        }
+      })
+      .catch(() => {
+        pendingRingtone = true;
+        pendingCallAudio = true;
+      });
+  }
+
   function stopRingtone() {
-    if (ringAudio && audioPlaying) {
+    if (ringAudio && ringPlaying) {
       ringAudio.pause();
       ringAudio.currentTime = 0;
     }
-    audioPlaying = false;
+    ringPlaying = false;
+    pendingRingtone = false;
+  }
+
+  function stopCallAudio() {
+    if (callAudio && callPlaying) {
+      callAudio.pause();
+      callAudio.currentTime = 0;
+    }
+    callPlaying = false;
+    pendingCallAudio = false;
   }
 
   $: if (show && !callActive) {
@@ -49,10 +114,15 @@
     stopRingtone();
   }
 
+  $: if (!show) {
+    stopCallAudio();
+  }
+
   function accept() {
     callActive = true;
     clearInterval(ringInterval);
     stopRingtone();
+    startCallAudio();
     elapsed = 0;
     callTimer = setInterval(() => {
       elapsed++;
@@ -67,12 +137,14 @@
     clearInterval(ringInterval);
     clearInterval(callTimer);
     stopRingtone();
+    stopCallAudio();
     dispatch("end", { accepted: false });
   }
 
   function hangup() {
     clearInterval(callTimer);
     stopRingtone();
+    stopCallAudio();
     dispatch("end", { accepted: true, duration: elapsed });
   }
 
@@ -86,6 +158,12 @@
     clearInterval(ringInterval);
     clearInterval(callTimer);
     stopRingtone();
+    stopCallAudio();
+  });
+
+  onMount(() => {
+    window.addEventListener("pointerdown", unlockAudio, { once: true });
+    window.addEventListener("keydown", unlockAudio, { once: true });
   });
 </script>
 
@@ -116,6 +194,11 @@
         <span class="call-name">{driverName}</span>
         {#if reason}
           <span class="call-reason">{reason}</span>
+        {/if}
+        {#if !audioUnlocked}
+          <button class="sound-unlock" on:click={unlockAudio}>
+            Activer le son
+          </button>
         {/if}
         <div class="call-actions">
           <button
@@ -373,6 +456,26 @@
     justify-content: center;
     gap: 32px;
     margin-top: 28px;
+  }
+
+  .sound-unlock {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(15, 23, 42, 0.8);
+    color: #e2e8f0;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    margin: 14px auto 0;
+    cursor: pointer;
+  }
+
+  .sound-unlock:hover {
+    background: rgba(30, 41, 59, 0.85);
   }
 
   .call-btn {
