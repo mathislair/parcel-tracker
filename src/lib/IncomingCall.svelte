@@ -12,6 +12,8 @@
   let elapsed = 0;
   let callActive = false;
   let callTimer;
+  let autoHangupTimeout;
+  let callEnded = false;
   let ringAudio;
   let callAudio;
   let ringPlaying = false;
@@ -103,6 +105,13 @@
     pendingCallAudio = false;
   }
 
+  function clearAutoHangup() {
+    if (autoHangupTimeout) {
+      clearTimeout(autoHangupTimeout);
+      autoHangupTimeout = null;
+    }
+  }
+
   $: if (show && !callActive) {
     ringInterval = setInterval(() => {
       ringOn = !ringOn;
@@ -115,10 +124,18 @@
   }
 
   $: if (!show) {
+    clearInterval(ringInterval);
+    clearInterval(callTimer);
+    clearAutoHangup();
+    callActive = false;
+    elapsed = 0;
+    callEnded = false;
     stopCallAudio();
   }
 
   function accept() {
+    clearAutoHangup();
+    callEnded = false;
     callActive = true;
     clearInterval(ringInterval);
     stopRingtone();
@@ -130,19 +147,25 @@
 
     // Auto hang up after 5-12s
     const duration = 5000 + Math.random() * 7000;
-    setTimeout(() => hangup(), duration);
+    autoHangupTimeout = setTimeout(() => hangup(), duration);
   }
 
   function decline() {
+    if (callEnded) return;
+    callEnded = true;
     clearInterval(ringInterval);
     clearInterval(callTimer);
+    clearAutoHangup();
     stopRingtone();
     stopCallAudio();
     dispatch("end", { accepted: false });
   }
 
   function hangup() {
+    if (callEnded) return;
+    callEnded = true;
     clearInterval(callTimer);
+    clearAutoHangup();
     stopRingtone();
     stopCallAudio();
     dispatch("end", { accepted: true, duration: elapsed });
@@ -157,6 +180,7 @@
   onDestroy(() => {
     clearInterval(ringInterval);
     clearInterval(callTimer);
+    clearAutoHangup();
     stopRingtone();
     stopCallAudio();
   });
