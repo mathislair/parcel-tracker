@@ -28,7 +28,7 @@
   let arriving = false;
   let progress = 0;
   let etaSeconds = 0;
-  let totalDuration = 180;
+  let totalDuration = 75;
   let extraDelay = 0;
   let nowTs = Date.now();
   let interval;
@@ -56,8 +56,8 @@
   let dragOrigin = { x: 0, y: 0 };
 
   // Bottom sheet
-  const PANEL_COLLAPSED_OFFSET = 250;
-  const PANEL_COLLAPSE_THRESHOLD = 120;
+  const PANEL_COLLAPSED_OFFSET = 180;
+  const PANEL_COLLAPSE_THRESHOLD = 70;
   let panelCollapsed = false;
   let panelDragging = false;
   let panelDragY = 0;
@@ -120,8 +120,8 @@
   }
 
   function createStartPos(destPos) {
-    const offsetLat = (Math.random() - 0.5) * 0.012 + 0.02;
-    const offsetLng = (Math.random() - 0.5) * 0.012 + 0.02;
+    const offsetLat = (Math.random() - 0.5) * 0.003 + 0.0045;
+    const offsetLng = (Math.random() - 0.5) * 0.003 + 0.0045;
     return { lat: destPos.lat + offsetLat, lng: destPos.lng - offsetLng };
   }
 
@@ -962,7 +962,7 @@
     box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.1);
     max-height: 62vh;
     overflow-y: auto;
-    transition: transform 0.2s ease;
+    transition: transform 0.12s ease-out;
   }
 
   .bottom-panel.dragging {
